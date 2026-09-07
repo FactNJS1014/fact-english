@@ -79,41 +79,26 @@ export default async function LearnPage({
   const level = lesson.topic.course.level;
   const topic = lesson.topic;
 
-  const [grammar, progressRow, unlock, quizAttempt, listeningAttempt, note, bookmarked] =
-    await Promise.all([
-      getTopicGrammar(topic.id),
-      getLessonProgressRow(user.id, lesson.id),
-      getLessonUnlocked(user.id, {
-        levelId: level.id,
-        courseId: topic.course.id,
-        topicId: topic.id,
-        topicOrder: topic.order,
-      }),
-      lesson.quiz[0]
-        ? db.quizAttempt.findFirst({
-            where: { userId: user.id, quizId: lesson.quiz[0].id, passed: true },
-          })
-        : Promise.resolve(null),
-      lesson.listening[0]
-        ? db.listeningAttempt.findFirst({
-            where: {
-              userId: user.id,
-              listeningExerciseId: lesson.listening[0].id,
-              passed: true,
-            },
-          })
-        : Promise.resolve(null),
-      db.note.findFirst({ where: { userId: user.id, lessonId: lesson.id } }),
-      db.bookmark.findUnique({
-        where: {
-          userId_targetKind_targetId: {
-            userId: user.id,
-            targetKind: "LESSON",
-            targetId: lesson.id,
-          },
+  const [grammar, progressRow, unlock, note, bookmarked] = await Promise.all([
+    getTopicGrammar(topic.id),
+    getLessonProgressRow(user.id, lesson.id),
+    getLessonUnlocked(user.id, {
+      levelId: level.id,
+      courseId: topic.course.id,
+      topicId: topic.id,
+      topicOrder: topic.order,
+    }),
+    db.note.findFirst({ where: { userId: user.id, lessonId: lesson.id } }),
+    db.bookmark.findUnique({
+      where: {
+        userId_targetKind_targetId: {
+          userId: user.id,
+          targetKind: "LESSON",
+          targetId: lesson.id,
         },
-      }),
-    ]);
+      },
+    }),
+  ]);
 
   // Remember which level the student is in
   if (user.currentLevelId !== level.id) {
@@ -171,8 +156,11 @@ export default async function LearnPage({
     },
   ];
 
+  const doneCount = checklist.filter((c) => c.done).length;
+  const progressPercent = Math.round((doneCount / checklist.length) * 100);
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[280px_1fr_290px]">
+    <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
       {/* Course navigation */}
       <aside className="order-2 hidden lg:block">
         <div className="sticky top-24 flex max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
@@ -249,6 +237,69 @@ export default async function LearnPage({
             initial={Boolean(bookmarked)}
           />
         </div>
+
+        {/* Lesson progress — full width */}
+        <Card className="mt-5 overflow-hidden">
+          <CardHeader className="border-b border-line bg-surface-2/60">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-brand" /> Lesson progress
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {lockedReasons.length > 0 ? (
+              <Banner tone="warning">
+                <Lock className="mr-1 inline h-3.5 w-3.5" /> {lockedReasons[0]}
+              </Banner>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <div className="flex items-center justify-between text-xs font-semibold text-faint">
+                    <span>
+                      {doneCount} of {checklist.length} steps done
+                    </span>
+                    <span>{progressPercent}%</span>
+                  </div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-surface-2">
+                    <div
+                      className="h-full rounded-full bg-brand transition-all"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                </div>
+                <ul className="grid gap-2.5 sm:grid-cols-3">
+                  {checklist.map((item) => {
+                    const inner = (
+                      <>
+                        {item.done ? (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+                        ) : (
+                          <Circle className="h-4 w-4 shrink-0 text-faint" />
+                        )}
+                        <span className={item.done ? "text-muted line-through" : ""}>{item.label}</span>
+                      </>
+                    );
+                    return (
+                      <li key={item.label}>
+                        {item.href && !item.disabled ? (
+                          <Link
+                            href={item.href}
+                            className="flex items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-sm hover:border-brand/40 hover:text-brand"
+                          >
+                            {inner}
+                          </Link>
+                        ) : (
+                          <span className="flex items-center gap-2.5 rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-sm">
+                            {inner}
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="card mt-5 p-5 sm:p-6">
           <h2 className="flex items-center gap-2 text-lg font-bold">
@@ -399,6 +450,43 @@ export default async function LearnPage({
           </div>
         )}
 
+        {/* Test CTA — appears when the lesson is finished */}
+        {quiz ? (
+          <div className="card mt-6 overflow-hidden border-brand/40 bg-gradient-to-r from-brand/10 via-transparent to-accent-purple/10 p-6 sm:p-8">
+            <div className="flex flex-col items-center gap-5 text-center sm:flex-row sm:justify-between sm:text-left">
+              <div className="min-w-0">
+                <h2 className="flex items-center justify-center gap-2 text-lg font-extrabold sm:justify-start">
+                  <Trophy className="h-5 w-5 text-warning" />
+                  {lessonCompleted ? "Lesson completed!" : "Test your knowledge"}
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  {lessonCompleted
+                    ? "You passed the listening and the quiz. Retake the test anytime, or continue to the next lesson."
+                    : readingDone
+                      ? "You have finished reading the lesson — time to take the test!"
+                      : `Read the lesson above, then take the ${quiz._count.questions}-question quiz to complete this lesson.`}
+                </p>
+              </div>
+              <Link
+                href={`/quiz/${quiz.id}?back=${encodeURIComponent(learnPath)}`}
+                className="btn btn-primary btn-lg shrink-0"
+              >
+                <Trophy className="h-4 w-4" />
+                {lessonCompleted ? "Retake test" : readingDone ? "Take the test" : "Start the test"}
+              </Link>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Personal notes — full width */}
+        <div className="mt-6 max-w-3xl">
+          <NotesCard
+            lessonId={lesson.id}
+            lessonPath={learnPath}
+            initialNote={note?.content}
+          />
+        </div>
+
         {/* Prev / next */}
         <nav className="mt-8 flex items-center justify-between gap-3">
           {prev ? (
@@ -419,73 +507,6 @@ export default async function LearnPage({
           )}
         </nav>
       </article>
-
-      {/* Right sidebar: checklist + notes */}
-      <aside className="order-3 lg:order-none">
-        <div className="flex flex-col gap-5 lg:sticky lg:top-24">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <CheckCircle2 className="h-4 w-4 text-brand" /> Lesson progress
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {lockedReasons.length > 0 ? (
-                <Banner tone="warning">
-                  <Lock className="mr-1 inline h-3.5 w-3.5" /> {lockedReasons[0]}
-                </Banner>
-              ) : (
-                <ul className="flex flex-col gap-2.5">
-                  {checklist.map((item) => {
-                    const inner = (
-                      <>
-                        {item.done ? (
-                          <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
-                        ) : (
-                          <Circle className="h-4 w-4 shrink-0 text-faint" />
-                        )}
-                        <span className={item.done ? "text-muted line-through" : ""}>{item.label}</span>
-                      </>
-                    );
-                    return (
-                      <li key={item.label}>
-                        {item.href && !item.disabled ? (
-                          <Link
-                            href={item.href}
-                            className="flex items-center gap-2.5 text-sm hover:text-brand"
-                          >
-                            {inner}
-                          </Link>
-                        ) : (
-                          <span className="flex items-center gap-2.5 text-sm">{inner}</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-
-          <NotesCard
-            lessonId={lesson.id}
-            lessonPath={learnPath}
-            initialNote={note?.content}
-          />
-
-          {quizAttempt && listeningAttempt ? (
-            <Card>
-              <CardContent className="flex items-center gap-3 py-4 text-sm">
-                <Trophy className="h-5 w-5 text-warning" />
-                <span className="text-muted">
-                  You passed both the listening and the quiz —{" "}
-                  <span className="font-semibold text-ink">lesson complete!</span>
-                </span>
-              </CardContent>
-            </Card>
-          ) : null}
-        </div>
-      </aside>
     </div>
   );
 }
