@@ -160,7 +160,7 @@ export default async function LearnPage({
   const progressPercent = Math.round((doneCount / checklist.length) * 100);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
       {/* Course navigation */}
       <aside className="order-2 hidden lg:block">
         <div className="sticky top-24 flex max-h-[calc(100vh-8rem)] flex-col overflow-hidden rounded-2xl border border-line bg-surface">
