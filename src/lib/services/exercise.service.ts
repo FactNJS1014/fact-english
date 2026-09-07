@@ -78,7 +78,8 @@ export async function submitReading(
   answers: Record<string, string>
 ): Promise<ReadingSubmitResult> {
   try {
-    return await db.$transaction(async (tx) => {
+    return await db.$transaction(
+      async (tx) => {
       const exercise = await tx.readingExercise.findUnique({
         where: { id: exerciseId },
       });
@@ -130,7 +131,9 @@ export async function submitReading(
         passed,
         review,
       };
-    });
+      },
+      { maxWait: 15000, timeout: 60000 } // slow Neon + achievement checks
+    );
   } catch (error) {
     console.error("[exercise.service] reading submit error:", error);
     return { ok: false, error: "We could not save your reading result." };
@@ -144,7 +147,8 @@ export async function submitWriting(
   content: string
 ): Promise<{ ok: true; updated: boolean } | { ok: false; error: string }> {
   try {
-    return await db.$transaction(async (tx) => {
+    return await db.$transaction(
+      async (tx) => {
       const exercise = await tx.exercise.findUnique({ where: { id: exerciseId } });
       if (!exercise) return { ok: false, error: "Exercise not found." };
 
@@ -164,7 +168,9 @@ export async function submitWriting(
         await awardAchievementsTx(tx, userId);
       }
       return { ok: true, updated: Boolean(existing) };
-    });
+      },
+      { maxWait: 15000, timeout: 60000 } // slow Neon + achievement checks
+    );
   } catch (error) {
     console.error("[exercise.service] writing submit error:", error);
     return { ok: false, error: "We could not save your answer." };

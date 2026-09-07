@@ -80,7 +80,8 @@ export async function submitListening(
   answers: Record<string, string>
 ): Promise<ListeningSubmitResult> {
   try {
-    return await db.$transaction(async (tx) => {
+    return await db.$transaction(
+      async (tx) => {
       const exercise = await tx.listeningExercise.findUnique({
         where: { id: exerciseId },
         include: { questions: { orderBy: { order: "asc" } } },
@@ -141,7 +142,9 @@ export async function submitListening(
         passed,
         review,
       };
-    });
+      },
+      { maxWait: 15000, timeout: 60000 } // slow Neon + achievement checks
+    );
   } catch (error) {
     console.error("[listening.service] submit error:", error);
     return {

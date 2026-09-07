@@ -82,7 +82,8 @@ export async function submitQuiz(
   answers: Record<string, string>
 ): Promise<QuizSubmitResult> {
   try {
-    return await db.$transaction(async (tx) => {
+    return await db.$transaction(
+      async (tx) => {
       const quiz = await tx.quiz.findUnique({
         where: { id: quizId },
         include: {
@@ -173,7 +174,9 @@ export async function submitQuiz(
         passingScore: quiz.passingScore,
         review,
       };
-    });
+      },
+      { maxWait: 15000, timeout: 60000 } // slow Neon + achievement checks
+    );
   } catch (error) {
     console.error("[quiz.service] submit error:", error);
     return { ok: false, error: "We could not save your quiz. Please try again." };

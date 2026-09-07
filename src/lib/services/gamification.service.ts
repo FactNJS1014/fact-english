@@ -162,13 +162,20 @@ export async function awardAchievementsTx(tx: Tx, userId: string) {
     });
   }
 
-  const toAward: { id: string; xp: number }[] = [];
-  for (const achievement of all) {
-    if (ownedCodes.has(achievement.code)) continue;
-    const condition = conditions.find((c) => c.code === achievement.code);
-    const earned = condition ? await condition.check(tx, userId) : false;
-    if (earned) toAward.push({ id: achievement.id, xp: achievement.xp });
-  }
+  // Checks are read-only, so run them in parallel — keeps the enclosing
+  // interactive transaction fast (17 sequential round-trips can exceed
+  // Prisma's 5s default interactive timeout over Neon's latency).
+  const candidates = all.filter((a) => !ownedCodes.has(a.code));
+  const results = await Promise.all(
+    candidates.map(async (achievement) => {
+      const condition = conditions.find((c) => c.code === achievement.code);
+      if (!condition) return null;
+      return (await condition.check(tx, userId)) ? achievement : null;
+    })
+  );
+  const toAward = results.filter(
+    (x): x is { id: string; xp: number; code: string } => x !== null
+  );
 
   for (const item of toAward) {
     await tx.userAchievement.create({

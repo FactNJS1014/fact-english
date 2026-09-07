@@ -208,9 +208,12 @@ async function rollUpLevelTx(tx: Tx, userId: string, levelId: string) {
 // ---------------------------------------------------------------- public entry points
 
 export async function viewLesson(userId: string, lessonId: string) {
-  await db.$transaction(async (tx) => {
-    await applyLessonComponentTx(tx, userId, lessonId, "reading");
-  });
+  await db.$transaction(
+    async (tx) => {
+      await applyLessonComponentTx(tx, userId, lessonId, "reading");
+    },
+    { maxWait: 15000, timeout: 60000 } // slow Neon + achievement checks
+  );
 }
 
 export async function markQuizPassedTx(tx: Tx, userId: string, lessonId: string) {

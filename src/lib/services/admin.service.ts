@@ -506,7 +506,8 @@ export async function adminReplaceQuizQuestions(
     options: { text: string; isCorrect: boolean; order: number }[];
   }[]
 ) {
-  await db.$transaction(async (tx) => {
+  await db.$transaction(
+    async (tx) => {
     await tx.quizQuestion.deleteMany({ where: { quizId } });
     for (const q of questions) {
       await tx.quizQuestion.create({
@@ -521,7 +522,9 @@ export async function adminReplaceQuizQuestions(
         },
       });
     }
-  });
+    },
+    { maxWait: 15000, timeout: 60000 }
+  );
 }
 
 /** Replace a listening exercise's question set atomically. */
@@ -537,7 +540,8 @@ export async function adminReplaceListeningQuestions(
     points: number;
   }[]
 ) {
-  await db.$transaction(async (tx) => {
+  await db.$transaction(
+    async (tx) => {
     await tx.listeningQuestion.deleteMany({ where: { listeningExerciseId: exerciseId } });
     for (const q of questions) {
       await tx.listeningQuestion.create({
@@ -553,7 +557,9 @@ export async function adminReplaceListeningQuestions(
         },
       });
     }
-  });
+    },
+    { maxWait: 15000, timeout: 60000 }
+  );
 }
 
 export async function adminListAllCourses() {
